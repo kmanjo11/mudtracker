@@ -4,7 +4,7 @@ import EventEmitter from 'events'
 import { TransactionParser } from '../parsers/transaction-parser'
 import { SendTransactionMsgHandler } from '../bot/handlers/send-tx-msg-handler'
 import { bot } from '../providers/telegram'
-import { SwapType, WalletWithUsers } from '../types/swap-types'
+import { SwapPlatform, SwapType, WalletWithUsers } from '../types/swap-types'
 import { RateLimit } from './rate-limit'
 import {
   JUPITER_PROGRAM_ID,
@@ -187,7 +187,9 @@ export class WatchTransaction extends EventEmitter {
         if (user) {
           // console.log('Users:', user)
           try {
-            await sendMessageHandler.send(parsed, user.userId)
+            // Convert threadId to undefined if null
+            const threadId = user.threadId ?? undefined;
+            await sendMessageHandler.send(parsed, user.userId, threadId)
           } catch (error) {
             console.log(`Error sending message to user ${user.userId}`)
           }
@@ -206,16 +208,16 @@ export class WatchTransaction extends EventEmitter {
     const logString = logs.logs.join(' ')
 
     if (logString.includes(PUMP_FUN_TOKEN_MINT_AUTH)) {
-      return { isRelevant: true, swap: 'mint_pumpfun' }
+      return { isRelevant: true, swap: SwapPlatform.MINT_PUMPFUN }
     }
     if (logString.includes(PUMP_FUN_PROGRAM_ID)) {
-      return { isRelevant: true, swap: 'pumpfun' }
+      return { isRelevant: true, swap: SwapPlatform.PUMPFUN }
     }
     if (logString.includes(JUPITER_PROGRAM_ID)) {
-      return { isRelevant: true, swap: 'jupiter' }
+      return { isRelevant: true, swap: SwapPlatform.JUPITER }
     }
     if (logString.includes(RAYDIUM_PROGRAM_ID)) {
-      return { isRelevant: true, swap: 'raydium' }
+      return { isRelevant: true, swap: SwapPlatform.RAYDIUM }
     }
 
     return { isRelevant: false, swap: null }

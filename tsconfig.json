@@ -1,19 +1,28 @@
 {
   "compilerOptions": {
-    "target": "es2016",                               
-
-    "module": "commonjs",  
-
-    "esModuleInterop": true,                                   
-    "forceConsistentCasingInFileNames": true,           
-    "strict": true,          
-
-    "skipLibCheck": true,   
-    "outDir": "dist",
-
-    "typeRoots": ["src/types/interfaces", "./node_modules/@types"]
+    "target": "es2020",
+    "module": "commonjs",
+    "lib": ["es2020", "dom"],
+    "declaration": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": ".",
+    "strict": true,
+    "noEmitOnError": false,
+    "moduleResolution": "node",
+    "baseUrl": ".",
+    "paths": {
+      "*": ["node_modules/*", "src/types/*"],
+      "@raydium-io/raydium-sdk-v2": ["node_modules/@raydium-io/raydium-sdk-v2"],
+      "@raydium-io/raydium-sdk-v2/*": ["node_modules/@raydium-io/raydium-sdk-v2/*"]
+    },
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true
   },
-
-  
+  "include": ["src/**/*", "types/**/*"],
   "exclude": ["node_modules", "dist"]
 }

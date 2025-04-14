@@ -5,6 +5,7 @@ import { PrismaWalletRepository } from '../repositories/prisma/wallet'
 import { SetupWalletWatcherProps } from '../types/general-interfaces'
 import { WalletWithUsers } from '../types/swap-types'
 import { WatchTransaction } from './watch-transactions'
+import { WalletWatcherEvent } from '../types/general-interfaces'
 
 export const walletsArray: WalletWithUsers[] = []
 
@@ -23,7 +24,7 @@ export class TrackWallets {
 
   public async setupWalletWatcher({ event, userId, walletId }: SetupWalletWatcherProps): Promise<void> {
     let walletsToFetch
-    if (event === 'delete' && walletId) {
+    if (event === WalletWatcherEvent.DELETE && walletId) {
       console.log('EVENT IS DELETE')
       const refetchedWallet = await this.prismaWalletRepository.getWalletByIdForArray(walletId)
 
@@ -50,7 +51,7 @@ export class TrackWallets {
           return await this.updateWallets(walletsArray!)
         }
       }
-    } else if (event === 'create' && walletId) {
+    } else if (event === WalletWatcherEvent.CREATE && walletId) {
       console.log('EVENT IS CREATE')
       const refetchedWallet = await this.prismaWalletRepository.getWalletByIdForArray(walletId)
 
@@ -70,7 +71,7 @@ export class TrackWallets {
       }
 
       return await this.updateWallets(walletsArray!)
-    } else if (event === 'update' && userId) {
+    } else if (event === WalletWatcherEvent.UPDATE && userId) {
       // Fetch all wallets related to the updated user ID
       walletsToFetch = await this.prismaWalletRepository.getBannedUserWalletsWithUserIds(userId)
 
@@ -135,7 +136,7 @@ export class TrackWallets {
       // })
 
       // return await this.updateWallets(walletsArray!)
-    } else if (event === 'initial') {
+    } else if (event === WalletWatcherEvent.INITIAL) {
       const allWallets = await this.prismaWalletRepository.getAllWalletsWithUserIds()
 
       // check for paused wallets before initial watcher call
@@ -173,22 +174,22 @@ export class TrackWallets {
 
             if (event.action === 'create') {
               const createdWalletId = event.created.walletId
-              await this.setupWalletWatcher({ event: 'create', walletId: createdWalletId })
+              await this.setupWalletWatcher({ event: WalletWatcherEvent.CREATE, walletId: createdWalletId })
             } else if (event.action === 'delete') {
               const deletedWalletId = event.deleted.walletId
               // await this.stopWatchingWallet(event.deleted.walletId)
-              await this.setupWalletWatcher({ event: 'delete', walletId: deletedWalletId })
+              await this.setupWalletWatcher({ event: WalletWatcherEvent.DELETE, walletId: deletedWalletId })
             } else if (event.action === 'update') {
               const updatedUserId = event.after.userId
-              await this.setupWalletWatcher({ event: 'update', userId: updatedUserId })
+              await this.setupWalletWatcher({ event: WalletWatcherEvent.UPDATE, userId: updatedUserId })
             }
-          } catch (eventError: any) {
-            console.error('Error processing event:', eventError.message)
+          } catch (eventError) {
+            console.error('Error processing event:', eventError instanceof Error ? eventError.message : String(eventError))
             throw eventError // This will exit the loop and trigger a reconnect
           }
         }
-      } catch (error: any) {
-        console.error('Connection lost. Attempting to reconnect...', error.message)
+      } catch (error) {
+        console.error('Connection lost. Attempting to reconnect...', error instanceof Error ? error.message : String(error))
         await new Promise((resolve) => setTimeout(resolve, 5000))
       }
     }

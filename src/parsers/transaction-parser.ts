@@ -3,7 +3,7 @@ import { TokenUtils } from '../lib/token-utils'
 import { Connection, ParsedTransactionWithMeta } from '@solana/web3.js'
 import { SwapType } from '../types/swap-types'
 import { FormatNumbers } from '../lib/format-numbers'
-import { NativeParserInterface } from '../types/general-interfaces'
+import { NativeParserInterface, TokenTransfer, TransactionType } from '../types/general-interfaces'
 import { RpcConnectionManager } from '../providers/solana'
 
 export class TransactionParser {
@@ -136,26 +136,26 @@ export class TransactionParser {
       // for raydium transactions
       if (transactions.length > 1) {
         if (nativeBalance?.type === 'sell') {
-          tokenOutMint = await this.tokenUtils.getTokenMintAddress(transactions[0]?.info.destination)
-          tokenInMint = 'So11111111111111111111111111111111111111112'
-
-          if (tokenOutMint === null) {
+          const tempTokenOutMint = await this.tokenUtils.getTokenMintAddress(transactions[0]?.info.destination)
+          if (!tempTokenOutMint) {
             console.log('NO TOKEN OUT MINT')
             return
           }
+          tokenOutMint = tempTokenOutMint
+          tokenInMint = 'So11111111111111111111111111111111111111112'
 
           const tokenOutInfo = await this.tokenParser.getTokenInfo(tokenOutMint)
 
           tokenOut = tokenOutInfo.data.symbol.replace(/\x00/g, '')
           tokenIn = 'SOL'
         } else {
-          tokenInMint = await this.tokenUtils.getTokenMintAddress(raydiumTransfer.info.source)
-          tokenOutMint = 'So11111111111111111111111111111111111111112'
-
-          if (tokenInMint === null) {
+          const tempTokenInMint = await this.tokenUtils.getTokenMintAddress(raydiumTransfer.info.source)
+          if (!tempTokenInMint) {
             console.log('NO TOKEN IN MINT')
             return
           }
+          tokenInMint = tempTokenInMint
+          tokenOutMint = 'So11111111111111111111111111111111111111112'
 
           const tokenInInfo = await this.tokenParser.getTokenInfo(tokenInMint)
 
@@ -222,27 +222,30 @@ export class TransactionParser {
           }
         }
 
+        const tokenTransfers: TokenTransfer[] = [{
+          tokenInSymbol: tokenIn,
+          tokenOutSymbol: tokenOut,
+          tokenInMint,
+          tokenOutMint,
+          tokenAmountIn: amountIn,
+          tokenAmountOut: amountOut
+        }]
+
         return {
           platform: swap,
-          owner: owner,
-          description: swapDescription,
-          type: nativeBalance?.type,
+          owner,
+          description: `${tokenIn}/${tokenOut}`,
+          type: nativeBalance?.type === 'buy' ? TransactionType.SWAP : 
+                nativeBalance?.type === 'sell' ? TransactionType.SWAP : undefined,
           balanceChange: nativeBalance?.balanceChange,
           signature: this.transactionSignature,
           swappedTokenMc: tokenMc,
           swappedTokenPrice: raydiumTokenPrice,
-          solPrice: solPriceUsd || '',
-          currenHoldingPercentage: currenHoldingPercentage,
-          currentHoldingPrice: currentHoldingPrice,
-          isNew: isNew,
-          tokenTransfers: {
-            tokenInSymbol: tokenIn,
-            tokenInMint: tokenInMint,
-            tokenAmountIn: amountIn,
-            tokenOutSymbol: tokenOut,
-            tokenOutMint: tokenOutMint,
-            tokenAmountOut: amountOut,
-          },
+          solPrice: solPriceUsd || '0',
+          currentHoldingPrice,
+          currenHoldingPercentage,
+          isNew,
+          tokenTransfers
         }
       }
 
@@ -261,26 +264,26 @@ export class TransactionParser {
         // }
 
         if (nativeBalance?.type === 'sell') {
-          tokenOutMint = await this.tokenUtils.getTokenMintAddressWithFallback(transactions)
-          tokenInMint = 'So11111111111111111111111111111111111111112'
-
-          if (tokenOutMint === null) {
+          const tempTokenOutMint = await this.tokenUtils.getTokenMintAddressWithFallback(transactions)
+          if (!tempTokenOutMint) {
             console.log('NO TOKEN OUT MINT')
             return
           }
+          tokenOutMint = tempTokenOutMint
+          tokenInMint = 'So11111111111111111111111111111111111111112'
 
           const tokenOutInfo = await this.tokenParser.getTokenInfo(tokenOutMint)
 
           tokenOut = tokenOutInfo.data.symbol.replace(/\x00/g, '')
           tokenIn = 'SOL'
         } else {
-          tokenOutMint = 'So11111111111111111111111111111111111111112'
-          tokenInMint = await this.tokenUtils.getTokenMintAddressWithFallback(transactions)
-
-          if (tokenInMint === null) {
+          const tempTokenInMint = await this.tokenUtils.getTokenMintAddressWithFallback(transactions)
+          if (!tempTokenInMint) {
             console.log('NO TOKEN IN MINT')
             return
           }
+          tokenOutMint = 'So11111111111111111111111111111111111111112'
+          tokenInMint = tempTokenInMint
 
           const tokenInInfo = await this.tokenParser.getTokenInfo(tokenInMint)
 
@@ -324,27 +327,30 @@ export class TransactionParser {
           currentHoldingPrice = tokenHoldings.balance
         }
 
+        const tokenTransfers: TokenTransfer[] = [{
+          tokenInSymbol: tokenIn,
+          tokenOutSymbol: tokenOut,
+          tokenInMint,
+          tokenOutMint,
+          tokenAmountIn: amountIn,
+          tokenAmountOut: amountOut
+        }]
+
         return {
           platform: swap,
-          owner: owner,
-          description: swapDescription,
-          type: nativeBalance?.type,
+          owner,
+          description: `${tokenIn}/${tokenOut}`,
+          type: nativeBalance?.type === 'buy' ? TransactionType.SWAP : 
+                nativeBalance?.type === 'sell' ? TransactionType.SWAP : undefined,
           balanceChange: nativeBalance?.balanceChange,
           signature: this.transactionSignature,
           swappedTokenMc: tokenMc,
           swappedTokenPrice: tokenPrice,
-          solPrice: solPriceUsd || '',
-          isNew: isNew,
-          currenHoldingPercentage: currenHoldingPercentage,
-          currentHoldingPrice: currentHoldingPrice,
-          tokenTransfers: {
-            tokenInSymbol: tokenIn,
-            tokenInMint: tokenInMint,
-            tokenAmountIn: amountIn,
-            tokenOutSymbol: tokenOut,
-            tokenOutMint: tokenOutMint,
-            tokenAmountOut: amountOut,
-          },
+          solPrice: solPriceUsd || '0',
+          currentHoldingPrice,
+          currenHoldingPercentage,
+          isNew,
+          tokenTransfers
         }
       }
     } catch (error) {

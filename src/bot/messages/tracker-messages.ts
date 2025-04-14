@@ -2,8 +2,8 @@ import { MAX_FREE_WALLETS } from '../../constants/pricing'
 import { WalletDetails } from '../../lib/wallet-details'
 import { UserWallet } from '../../types/prisma-types'
 
-export class ManageMessages {
-  static manageMessage(userWallets: UserWallet[], walletsAmt: number) {
+export class TrackerMessages {
+  static trackerMessage(userWallets: UserWallet[], walletsAmt: number) {
     const messageText = `
 <b>Your wallets: ${userWallets.length} / ${walletsAmt}</b>
 

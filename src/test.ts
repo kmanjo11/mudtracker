@@ -10,13 +10,11 @@ import {
   PUMP_FUN_TOKEN_MINT_AUTH,
   RAYDIUM_PROGRAM_ID,
 } from './config/program-ids'
-import { SwapType } from './types/swap-types'
+import { SwapPlatform, SwapType } from './types/swap-types'
 import chalk from 'chalk'
 import { TokenParser } from './parsers/token-parser'
 import { FormatNumbers } from './lib/format-numbers'
-
-// @ts-expect-error
-import { getAccount, getAssociatedTokenAddress } from '@solana/spl-token'
+import { getAccount, getAssociatedTokenAddress, getMint } from '@solana/spl-token'
 
 function isRelevantTransaction(logs: Logs): { isRelevant: boolean; program: SwapType } {
   // Guard clause for empty logs
@@ -29,16 +27,16 @@ function isRelevantTransaction(logs: Logs): { isRelevant: boolean; program: Swap
 
   // Check programs one by one and return the first match
   if (logString.includes(PUMP_FUN_PROGRAM_ID)) {
-    return { isRelevant: true, program: 'pumpfun' }
+    return { isRelevant: true, program: SwapPlatform.PUMPFUN }
   }
   if (logString.includes(RAYDIUM_PROGRAM_ID)) {
-    return { isRelevant: true, program: 'raydium' }
+    return { isRelevant: true, program: SwapPlatform.RAYDIUM }
   }
   if (logString.includes(JUPITER_PROGRAM_ID)) {
-    return { isRelevant: true, program: 'jupiter' }
+    return { isRelevant: true, program: SwapPlatform.JUPITER }
   }
   if (logString.includes(PUMP_FUN_TOKEN_MINT_AUTH)) {
-    return { isRelevant: true, program: 'mint_pumpfun' }
+    return { isRelevant: true, program: SwapPlatform.MINT_PUMPFUN }
   }
 
   return { isRelevant: false, program: null }
@@ -172,22 +170,25 @@ async function getTokenHoldings(walletAddress: string, tokenMintAddress: string)
     const tokenMintPublicKey = new PublicKey(tokenMintAddress)
 
     const associatedTokenAddress = await getAssociatedTokenAddress(tokenMintPublicKey, walletPublicKey)
-    const tokenAccountInfo = await getAccount(RpcConnectionManager.connections[0], associatedTokenAddress)
+    const tokenAccount = await getAccount(RpcConnectionManager.connections[0], associatedTokenAddress)
+    const mint = await getMint(RpcConnectionManager.connections[0], tokenMintPublicKey)
 
     const tokenSupply = await RpcConnectionManager.connections[0].getTokenSupply(tokenMintPublicKey)
     const supplyValue = tokenSupply.value.uiAmount
 
     if (!supplyValue) return
 
-    const percentage = (Number(tokenAccountInfo.amount) / Number(tokenSupply.value.amount)) * 100
+    const balance = Number(tokenAccount.amount) / Math.pow(10, mint.decimals)
+
+    const percentage = (balance / Number(tokenSupply.value.amount)) * 100
 
     const fixedPercentage = percentage > 0 ? `${percentage.toFixed(2)}%` : '0%'
 
-    console.log('BALANCE: ', FormatNumbers.formatTokenAmount(Number(tokenAccountInfo.amount)))
+    console.log('BALANCE: ', FormatNumbers.formatTokenAmount(balance))
     console.log('PERCENTAGE', fixedPercentage)
     return {
-      balance: tokenAccountInfo.amount.toString(),
-      decimals: tokenAccountInfo.decimals,
+      balance: tokenAccount.amount.toString(),
+      decimals: mint.decimals,
     }
   } catch (error) {
     console.log('Error fetching token holdings:', error)

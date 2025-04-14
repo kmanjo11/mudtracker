@@ -1,55 +1,43 @@
 import TelegramBot from 'node-telegram-bot-api'
+import { Context } from 'telegraf'
+import { Update } from 'telegraf/typings/core/types/typegram'
 import { PrismaUserRepository } from '../../repositories/prisma/user'
 import { SUB_MENU, USER_WALLET_SUB_MENU } from '../../config/bot-menus'
 import { WalletMessages } from '../messages/wallet-messages'
+import { Command } from '../types'
 
-export class MyWalletCommand {
+export class MyWalletCommand implements Command {
   private prismaUserRepository: PrismaUserRepository
   private walletMessages: WalletMessages
+  readonly name = 'mywallet'
+  readonly description = 'View your wallet details'
   constructor(private bot: TelegramBot) {
+    this.bot = bot
     this.prismaUserRepository = new PrismaUserRepository()
     this.walletMessages = new WalletMessages()
-
-    this.bot = bot
   }
+  async execute(ctx: Context<Update>): Promise<void> {
+    const userId = ctx.from?.id.toString()
+    if (!userId) return
 
-  public async myWalletCommandHandler(msg: TelegramBot.Message) {
-    const userId = msg.chat.id.toString()
     const userPersonalWallet = await this.prismaUserRepository.getPersonalWallet(userId)
-
-    if (!userPersonalWallet) {
-      return
-    }
+    if (!userPersonalWallet) return
 
     const messageText = await this.walletMessages.sendMyWalletMessage(userPersonalWallet)
 
-    const sendMessage = this.bot.editMessageText(messageText, {
-      chat_id: msg.chat.id,
-      message_id: msg.message_id,
-      reply_markup: USER_WALLET_SUB_MENU,
-      parse_mode: 'HTML',
-    })
-
-    return sendMessage
+    if (ctx.callbackQuery) {
+      await ctx.editMessageText(messageText, {
+        reply_markup: USER_WALLET_SUB_MENU,
+        parse_mode: 'HTML'
+      })
+    } else {
+      await ctx.reply(messageText, {
+        reply_markup: USER_WALLET_SUB_MENU,
+        parse_mode: 'HTML'
+      })
+    }
   }
-
-  public async showPrivateKeyHandler(msg: TelegramBot.Message) {
-    const userId = String(msg.chat.id)
-
-    const userPrivKey = await this.prismaUserRepository.showUserPrivateKey(userId)
-
-    const messageText = `
-Your private key (do not share with anyone!!!)
-
-(Click to copy)
-<code>${userPrivKey ? userPrivKey : ''}</code>
-`
-
-    this.bot.editMessageText(messageText, {
-      chat_id: msg.chat.id,
-      message_id: msg.message_id,
-      reply_markup: SUB_MENU,
-      parse_mode: 'HTML',
-    })
+  async handleCallback(ctx: Context<Update>): Promise<void> {
+    await this.execute(ctx)
   }
 }

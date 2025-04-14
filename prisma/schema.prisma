@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("SUPABASE_DATABASE_URL")
+  url      = env("NEON_DATABASE_URL")
 }
 
 enum SubscriptionPlan {
@@ -47,6 +47,7 @@ model User {
   userWallets             UserWallet[]
   userPromotions          UserPromotion[]
   groups                  Group[]
+  groupMemberships        GroupMember[]
 
   createdAt               DateTime          @default(now())
   updatedAt               DateTime          @updatedAt
@@ -64,6 +65,7 @@ model UserWallet {
   walletId        String
   name            String
   address         String
+  threadId        Int?
 
   handiCatStatus  HandiCatStatus   @default(ACTIVE)
   status          WalletStatus     @default(ACTIVE)
@@ -123,5 +125,31 @@ model Group {
   userId String
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  notifications Boolean @default(false)
+  autoAccept Boolean @default(false)
+  minWalletAge Int @default(0)
+
+  members GroupMember[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([userId])
+}
+
+model GroupMember {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  groupId String
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, groupId])
+  @@index([userId])
+  @@index([groupId])
 }

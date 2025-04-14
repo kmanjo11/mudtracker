@@ -1,55 +1,50 @@
 import TelegramBot from 'node-telegram-bot-api'
+import { Context } from 'telegraf'
+import { Update } from 'telegraf/typings/core/types/typegram'
 import { PrismaWalletRepository } from '../../repositories/prisma/wallet'
-import { ManageMessages } from '../messages/manage-messages'
+import { TrackerMessages } from '../messages/tracker-messages'
 import { MANAGE_SUB_MENU } from '../../config/bot-menus'
 import { UserPlan } from '../../lib/user-plan'
 import { BotMiddleware } from '../../config/bot-middleware'
+import { Command } from '../types'
 
-export class ManageCommand {
+export class TrackerCommand implements Command {
   private prismaWalletRepository: PrismaWalletRepository
   private userPlan: UserPlan
+  private trackerMessages: TrackerMessages
 
-  private manageMessages: ManageMessages
+  readonly name = 'manage'
+  readonly description = 'Track and manage your wallets'
+
   constructor(private bot: TelegramBot) {
     this.bot = bot
-
     this.prismaWalletRepository = new PrismaWalletRepository()
     this.userPlan = new UserPlan()
-
-    this.manageMessages = new ManageMessages()
+    this.trackerMessages = new TrackerMessages()
   }
 
-  public async manageCommandHandler() {
-    this.bot.onText(/\/manage/, async (msg) => {
-      await this.manage({ message: msg, isButton: false })
-    })
-  }
-
-  public async manageButtonHandler(msg: TelegramBot.Message) {
-    await this.manage({ message: msg, isButton: true })
-  }
-
-  public async manage({ message, isButton }: { message: TelegramBot.Message; isButton: boolean }) {
-    const userId = message.chat.id.toString()
+  async execute(ctx: Context<Update>): Promise<void> {
+    const userId = ctx.from?.id.toString()
+    if (!userId) return
 
     const userWallets = await this.prismaWalletRepository.getUserWallets(userId)
-
     const planWallets = await this.userPlan.getUserPlanWallets(userId)
+    const messageText = TrackerMessages.trackerMessage(userWallets || [], planWallets)
 
-    const messageText = ManageMessages.manageMessage(userWallets || [], planWallets)
-
-    if (isButton) {
-      this.bot.editMessageText(messageText, {
-        chat_id: message.chat.id,
-        message_id: message.message_id,
-        reply_markup: BotMiddleware.isGroup(message.chat.id) ? undefined : MANAGE_SUB_MENU,
-        parse_mode: 'HTML',
+    if (ctx.callbackQuery) {
+      await ctx.editMessageText(messageText, {
+        reply_markup: BotMiddleware.isGroup(Number(userId)) ? undefined : MANAGE_SUB_MENU,
+        parse_mode: 'HTML'
       })
     } else {
-      this.bot.sendMessage(message.chat.id, messageText, {
-        reply_markup: BotMiddleware.isGroup(message.chat.id) ? undefined : MANAGE_SUB_MENU,
-        parse_mode: 'HTML',
+      await ctx.reply(messageText, {
+        reply_markup: BotMiddleware.isGroup(Number(userId)) ? undefined : MANAGE_SUB_MENU,
+        parse_mode: 'HTML'
       })
     }
+  }
+
+  async handleCallback(ctx: Context<Update>): Promise<void> {
+    await this.execute(ctx)
   }
 }

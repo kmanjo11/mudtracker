@@ -5,65 +5,24 @@ import { WalletWithUsers } from '../../types/swap-types'
 export class PrismaWalletRepository {
   constructor() {}
 
-  public async create(userId: string, walletAddress: string, walletName?: string) {
+  public async create(userId: string, address: string, name?: string, threadId?: number) {
     try {
-      const existingWallet = await prisma.wallet.findFirst({
-        where: {
-          address: walletAddress,
-        },
-        select: {
-          id: true,
-        },
-      })
+      const walletId = await this.findOrCreateWallet(address)
 
-      if (existingWallet) {
-        // Check if the user is already linked to this wallet
-        const userWalletLink = await prisma.userWallet.findFirst({
-          where: {
-            userId,
-            walletId: existingWallet.id,
-          },
-          select: {
-            userId: true,
-          },
-        })
-
-        if (!userWalletLink) {
-          const linkUserToWallet = await prisma.userWallet.create({
-            data: {
-              userId,
-              walletId: existingWallet.id,
-              name: walletName ? walletName : '',
-              address: walletAddress,
-            },
-          })
-
-          return linkUserToWallet
-        }
-
-        return userWalletLink
-      }
-
-      // Create the wallet first
-      const newWallet = await prisma.wallet.create({
+      const userWallet = await prisma.userWallet.create({
         data: {
-          address: walletAddress,
+          userId,
+          walletId,
+          name: name || address,
+          address,
+          threadId
         },
       })
 
-      // Connect the new wallet to the user via the UserWallet join table
-      await prisma.userWallet.create({
-        data: {
-          userId: userId,
-          walletId: newWallet.id,
-          name: walletName ? walletName : '',
-          address: walletAddress,
-        },
-      })
-
-      return newWallet
-    } catch (error: any) {
+      return userWallet
+    } catch (error) {
       console.log('CREATE_WALLET_ERROR', error)
+      return
     }
   }
 
@@ -426,5 +385,28 @@ export class PrismaWalletRepository {
         return
       }
     }
+  }
+
+  private async findOrCreateWallet(address: string) {
+    const existingWallet = await prisma.wallet.findFirst({
+      where: {
+        address,
+      },
+      select: {
+        id: true,
+      },
+    })
+
+    if (existingWallet) {
+      return existingWallet.id
+    }
+
+    const newWallet = await prisma.wallet.create({
+      data: {
+        address,
+      },
+    })
+
+    return newWallet.id
   }
 }

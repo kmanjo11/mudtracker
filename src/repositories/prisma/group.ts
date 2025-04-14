@@ -4,12 +4,12 @@ import { PrismaUserRepository } from './user'
 import { PrismaWalletRepository } from './wallet'
 
 export class PrismaGroupRepository {
-  private prismaUserRepository: PrismaUserRepository
-  private prismaWalletRepository: PrismaWalletRepository
+  private prismaUserRepository: PrismaUserRepository;
+  private prismaWalletRepository: PrismaWalletRepository;
 
   constructor() {
-    this.prismaUserRepository = new PrismaUserRepository()
-    this.prismaWalletRepository = new PrismaWalletRepository()
+    this.prismaUserRepository = new PrismaUserRepository();
+    this.prismaWalletRepository = new PrismaWalletRepository();
   }
 
   public async activateGroup(props: CreateUserGroupInterface) {
@@ -73,13 +73,34 @@ export class PrismaGroupRepository {
         select: {
           id: true,
           name: true,
+          userId: true,
+          createdAt: true,
+          notifications: true,
+          autoAccept: true,
+          minWalletAge: true,
+          members: {
+            select: {
+              userId: true
+            }
+          }
         },
-      })
+      }) as Array<{
+        id: string;
+        name: string;
+        userId: string;
+        createdAt: Date;
+        notifications: boolean;
+        autoAccept: boolean;
+        minWalletAge: number;
+        members: Array<{
+          userId: string;
+        }>;
+      }>
 
       return allUserGroups
     } catch (error) {
       console.log('GET_ALL_USER_GROUPS', error)
-      return
+      return undefined
     }
   }
 

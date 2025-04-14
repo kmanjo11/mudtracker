@@ -1,6 +1,7 @@
-import { PrismaClient } from '@prisma/client'
-import { withPulse } from '@prisma/extension-pulse'
+import { PrismaClient } from '@prisma/client';
+import { withPulse } from '@prisma/extension-pulse';
+import { env } from '../utils/env';
 
-const prisma = new PrismaClient().$extends(withPulse({ apiKey: process.env.PULSE_API_KEY ?? '' }))
+const prisma = new PrismaClient().$extends(withPulse({ apiKey: env.prisma.pulseApiKey }));
 
-export default prisma
+export default prisma;

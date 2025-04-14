@@ -1,7 +1,7 @@
 // this class is no longer being used, im using walletWatcher.isRelevantTransaction instead
 
 import { PublicKey } from '@solana/web3.js'
-import { SwapType } from '../types/swap-types'
+import { SwapPlatform, SwapType } from '../types/swap-types'
 import {
   JUPITER_PROGRAM_ID,
   PUMP_FUN_PROGRAM_ID,
@@ -27,16 +27,16 @@ export class ValidTransactions {
 
     if (pumpFunMinted) {
       console.log('detected token mint transaction')
-      return { valid: true, swap: 'mint_pumpfun' }
+      return { valid: true, swap: SwapPlatform.MINT_PUMPFUN }
     } else if (pumpFunTransaction) {
       console.log('detected pumpfun transaction')
-      return { valid: true, swap: 'pumpfun' }
+      return { valid: true, swap: SwapPlatform.PUMPFUN }
     } else if (jupiterTransaction) {
       console.log('detected jupiter transaction')
-      return { valid: true, swap: 'jupiter' }
+      return { valid: true, swap: SwapPlatform.JUPITER }
     } else if (raydiumTransaction) {
       console.log('detected raydium transaction')
-      return { valid: true, swap: 'raydium' }
+      return { valid: true, swap: SwapPlatform.RAYDIUM }
     } else {
       return { valid: false, swap: null }
     }

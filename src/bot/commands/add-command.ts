@@ -1,187 +1,110 @@
+import { Context, Telegraf } from 'telegraf'
+import { Update } from 'telegraf/typings/core/types/typegram'
 import TelegramBot from 'node-telegram-bot-api'
+import { BaseCommand } from './base-command'
+import { Command } from '../types'
 import { SUB_MENU, UPGRADE_PLAN_SUB_MENU } from '../../config/bot-menus'
-import { PublicKey } from '@solana/web3.js'
-import { PrismaWalletRepository } from '../../repositories/prisma/wallet'
-import { userExpectingWalletAddress } from '../../constants/flags'
-import { TrackWallets } from '../../lib/track-wallets'
 import { RateLimit } from '../../lib/rate-limit'
-import { MAX_5_MIN_TXS_ALLOWED } from '../../constants/handi-cat'
-import { WalletMessages } from '../messages/wallet-messages'
-import { UserPlan } from '../../lib/user-plan'
-import { PrismaUserRepository } from '../../repositories/prisma/user'
-import { GeneralMessages } from '../messages/general-messages'
-import { BANNED_WALLETS } from '../../constants/banned-wallets'
-import { BotMiddleware } from '../../config/bot-middleware'
-import { SubscriptionMessages } from '../messages/subscription-messages'
+import { BotMiddleware } from '../middleware/bot-middleware'
+import { PrismaWalletRepository } from '../../repositories/prisma/wallet'
+import { UserPlan } from '../../services/user/user-plan'
 
-export class AddCommand {
+export class AddCommand extends BaseCommand implements Command {
+  readonly name = 'add'
+  readonly description = 'Add a wallet to track'
+
+  private rateLimit: RateLimit
+  private botMiddleware: BotMiddleware
   private prismaWalletRepository: PrismaWalletRepository
-  private trackWallets: TrackWallets
   private userPlan: UserPlan
-  constructor(private bot: TelegramBot) {
-    this.bot = bot
 
+  constructor(bot: Telegraf<Context<Update>> | TelegramBot) {
+    super(bot)
+    this.rateLimit = new RateLimit(new Map())
+    this.botMiddleware = new BotMiddleware()
     this.prismaWalletRepository = new PrismaWalletRepository()
-
-    this.trackWallets = new TrackWallets()
     this.userPlan = new UserPlan()
   }
 
-  public addCommandHandler() {
-    this.bot.onText(/\/add/, async (msg) => {
-      const chatId = msg.chat.id
-      const userId = String(msg.from?.id)
-
-      // check for group chats
-      const groupValidationResult = await BotMiddleware.checkGroupChatRequirements(chatId, userId)
-
-      if (!groupValidationResult.isValid) {
-        return this.bot.sendMessage(chatId, groupValidationResult.message, {
-          parse_mode: 'HTML',
-        })
-      }
-
-      this.add({ message: msg, isButton: false })
-    })
-  }
-
-  public addButtonHandler(msg: TelegramBot.Message) {
-    this.add({ message: msg, isButton: true })
-  }
-
-  private add({ message, isButton }: { message: TelegramBot.Message; isButton: boolean }) {
-    try {
-      const userId = message.chat.id.toString()
-
-      const addMessage = WalletMessages.addWalletMessage
-      if (isButton) {
-        this.bot.editMessageText(addMessage, {
-          chat_id: message.chat.id,
-          message_id: message.message_id,
-          reply_markup: BotMiddleware.isGroup(message.chat.id) ? undefined : SUB_MENU,
-          parse_mode: 'HTML',
-        })
-      } else if (!isButton) {
-        this.bot.sendMessage(message.chat.id, addMessage, {
-          reply_markup: BotMiddleware.isGroup(message.chat.id) ? undefined : SUB_MENU,
-          parse_mode: 'HTML',
-        })
-      }
-
-      userExpectingWalletAddress[Number(userId)] = true
-      const listener = async (responseMsg: TelegramBot.Message) => {
-        // Check if the user is expected to enter a wallet address
-        if (!userExpectingWalletAddress[Number(userId)]) return
-
-        const text = responseMsg.text
-
-        if (text?.startsWith('/')) {
-          return
-        }
-
-        const walletEntries = text
-          ?.split('\n')
-          .map((entry) => entry.trim())
-          .filter(Boolean) // Split input by new lines, trim, and remove empty lines
-
-        if (!walletEntries || walletEntries.length === 0) {
-          this.bot.sendMessage(message.chat.id, 'No wallet addresses provided.')
-          return
-        }
-
-        const base58Regex = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/
-
-        for (const entry of walletEntries) {
-          const [walletAddress, walletName] = entry.split(' ')
-
-          // check for bot wallets
-          if (BANNED_WALLETS.has(walletAddress)) {
-            return this.bot.sendMessage(message.chat.id, GeneralMessages.botWalletError, {
-              parse_mode: 'HTML',
-              reply_markup: BotMiddleware.isGroup(message.chat.id) ? undefined : SUB_MENU,
-            })
-          }
-
-          if (walletAddress.includes('orc') || walletAddress.includes('pump')) {
-            return this.bot.sendMessage(message.chat.id, GeneralMessages.botWalletError, {
-              parse_mode: 'HTML',
-              reply_markup: BotMiddleware.isGroup(message.chat.id) ? undefined : SUB_MENU,
-            })
-          }
-
-          // check if user can add a wallet inside their plan limits
-          const planWallets = await this.userPlan.getUserPlanWallets(userId)
-          const userWallets = await this.prismaWalletRepository.getUserWallets(userId)
-
-          if (userWallets && userWallets.length >= planWallets) {
-            return this.bot.sendMessage(
-              message.chat.id,
-              GeneralMessages.walletLimitMessageError(walletName, walletAddress, planWallets),
-              {
-                parse_mode: 'HTML',
-                reply_markup: BotMiddleware.isGroup(message.chat.id) ? undefined : UPGRADE_PLAN_SUB_MENU,
-              },
-            )
-          }
-
-          // Validate the wallet before pushing to the database
-          if (!base58Regex.test(walletAddress)) {
-            this.bot.sendMessage(message.chat.id, `😾 Address provided is not a valid Solana wallet`)
-            continue
-          }
-
-          const publicKeyWallet = new PublicKey(walletAddress)
-          if (!PublicKey.isOnCurve(publicKeyWallet.toBytes())) {
-            this.bot.sendMessage(message.chat.id, `😾 Address provided is not a valid Solana wallet`)
-            continue
-          }
-
-          // const isValid =
-          //   base58Regex.test(walletAddress as string) &&
-          //   PublicKey.isOnCurve(new PublicKey(walletAddress as string).toBytes())
-
-          // if (!isValid) {
-          //   this.bot.sendMessage(message.chat.id, `😾 Address provided is not a valid Solana wallet`)
-          //   continue
-          // }
-
-          // const latestWalletTxs = await this.rateLimit.last5MinutesTxs(walletAddress)
-
-          // if (latestWalletTxs && latestWalletTxs >= MAX_5_MIN_TXS_ALLOWED) {
-          //   this.bot.sendMessage(
-          //     message.chat.id,
-          //     `😾 Wallet ${walletAddress} is spamming too many transactions, try another wallet or try again later`,
-          //   )
-          //   continue
-          // }
-
-          const isWalletAlready = await this.prismaWalletRepository.getUserWalletById(userId, walletAddress)
-
-          if (isWalletAlready) {
-            this.bot.sendMessage(message.chat.id, `🙀 You already follow the wallet: ${walletAddress}`)
-            continue
-          }
-
-          // Add wallet to the database
-          await this.prismaWalletRepository.create(userId!, walletAddress!, walletName)
-
-          this.bot.sendMessage(message.chat.id, `🎉 Wallet ${walletAddress} has been added.`)
-        }
-
-        // Remove the listener to avoid duplicate handling
-        this.bot.removeListener('message', listener)
-
-        // Reset the flag
-        userExpectingWalletAddress[Number(userId)] = false
-      }
-
-      this.bot.once('message', listener)
-    } catch (error) {
-      this.bot.sendMessage(
-        message.chat.id,
-        `😾 Somthing went wrong when adding this wallet! please try with another address`,
-      )
+  async execute(ctx: Context<Update>): Promise<void> {
+    if (!ctx.message || !('text' in ctx.message)) {
       return
     }
+
+    const chatId = ctx.message.chat.id
+    const text = ctx.message.text
+
+    try {
+      // Split and clean wallet addresses
+      const walletAddresses = text
+        .split(',')
+        .map((entry: string) => entry.trim())
+        .filter(Boolean)
+
+      if (walletAddresses.length === 0) {
+        await this.editMessage(ctx, '😿 Please provide at least one Solana wallet address')
+        return
+      }
+
+      const userId = chatId.toString()
+
+      // Check if user has reached wallet limit
+      const planWallets = await this.userPlan.getUserPlanWallets(userId)
+      const userWallets = await this.prismaWalletRepository.getUserWallets(userId)
+
+      if (!userWallets) {
+        await this.editMessage(ctx, '😿 Error fetching your wallets. Please try again.')
+        return
+      }
+
+      if (userWallets.length >= planWallets) {
+        await this.editMessage(ctx, 
+          `😿 You've reached the maximum number of wallets (${planWallets}) for your current plan`,
+          { reply_markup: UPGRADE_PLAN_SUB_MENU }
+        )
+        return
+      }
+
+      // Validate each wallet address
+      for (const walletAddress of walletAddresses) {
+        if (!this.isValidSolanaAddress(walletAddress)) {
+          await this.editMessage(ctx, '😾 Address provided is not a valid Solana wallet')
+          continue
+        }
+
+        // Check if wallet is already being tracked
+        const isWalletAlready = await this.prismaWalletRepository.getUserWalletById(userId, walletAddress)
+
+        if (isWalletAlready) {
+          await this.editMessage(ctx, `🙀 You already follow the wallet: ${walletAddress}`)
+          continue
+        }
+
+        // Add wallet to database
+        await this.prismaWalletRepository.create(
+          userId,
+          walletAddress,
+          walletAddress
+        )
+
+        await this.editMessage(ctx, `🎉 Wallet ${walletAddress} has been added.`)
+      }
+    } catch (error) {
+      console.error('Error in add command:', error)
+      await this.handleError(ctx, error)
+    }
+  }
+
+  async handleCallback(ctx: Context<Update>): Promise<void> {
+    if (!ctx.callbackQuery) return
+    
+    await this.editMessage(ctx,
+      '🐱 Please send me the Solana wallet address you want to track',
+      { reply_markup: SUB_MENU }
+    )
+  }
+
+  private isValidSolanaAddress(address: string): boolean {
+    return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)
   }
 }

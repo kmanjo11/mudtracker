@@ -4,33 +4,37 @@ import { bot } from '../providers/telegram'
 import { SubscriptionMessages } from '../bot/messages/subscription-messages'
 import { PrismaGroupRepository } from '../repositories/prisma/group'
 import { GeneralMessages } from '../bot/messages/general-messages'
+import dotenv from 'dotenv'
+
+dotenv.config()
 
 export class BotMiddleware {
+  private static ADMIN_ID = process.env.ADMIN_ID
+
   static isGroup(chatId: number): boolean {
     return chatId < 0
   }
 
   static async isUserPro(userId: string): Promise<boolean> {
-    const prismaUserRepository = new PrismaUserRepository()
-
-    const userPlan = await prismaUserRepository.getUserPlan(userId)
-
-    const isAuthorized = userPlan?.userSubscription?.plan === 'PRO' || userPlan?.userSubscription?.plan === 'WHALE'
-
-    return isAuthorized || false
+    // Always return true to disable subscription checks
+    return true
   }
 
   static async isUserAdmin(chatId: number, userId: string): Promise<boolean> {
     try {
-      // Get the list of administrators for the group chat
       const admins = await bot.getChatAdministrators(chatId)
-
       const isAdmin = admins.some((admin) => admin.user.id.toString() === userId)
-
       return isAdmin
     } catch (error) {
       console.error('Error checking if user is admin:', error)
       return false
+    }
+  }
+
+  static getMessageOptions(msg: TelegramBot.Message, options: any = {}): any {
+    return {
+      ...options,
+      message_thread_id: msg.message_thread_id
     }
   }
 
@@ -70,6 +74,7 @@ export class BotMiddleware {
     chatId: number,
     userId: string,
   ): Promise<{ isValid: boolean; message: string }> {
+    // Skip admin check since we're removing all restrictions
     if (!BotMiddleware.isGroup(chatId)) {
       return { isValid: true, message: '' }
     }
@@ -83,28 +88,7 @@ export class BotMiddleware {
       }
     }
 
-    if (!checkGroupActivated.isValid && checkGroupActivated.reason === 'BOT_NOT_ACTIVATED') {
-      return {
-        isValid: false,
-        message: GeneralMessages.groupChatNotActivated,
-      }
-    }
-
-    if (!checkGroupActivated.isValid && checkGroupActivated.reason === 'USER_NOT_AUTHORIZED') {
-      return {
-        isValid: false,
-        message: GeneralMessages.userNotAuthorizedInGroup,
-      }
-    }
-
-    const isUserPro = await BotMiddleware.isUserPro(userId)
-    if (!isUserPro) {
-      return {
-        isValid: false,
-        message: SubscriptionMessages.groupChatNotPro,
-      }
-    }
-
+    // Remove subscription checks and always return valid
     return { isValid: true, message: '' }
   }
 }

@@ -1,9 +1,6 @@
 import { Connection, LAMPORTS_PER_SOL, ParsedTransactionWithMeta, PublicKey } from '@solana/web3.js'
-// @ts-expect-error
 import { getAccount, getAssociatedTokenAddress } from '@solana/spl-token'
-
 import axios from 'axios'
-import { PoolInfoLayout, SqrtPriceMath } from '@raydium-io/raydium-sdk'
 import dotenv from 'dotenv'
 import { ParsedTxInfo } from '../types/general-interfaces'
 import {
@@ -131,13 +128,8 @@ export class TokenUtils {
         return
       }
 
-      const poolData = PoolInfoLayout.decode(accountInfo.data)
-
-      const solPrice = SqrtPriceMath.sqrtPriceX64ToPrice(
-        poolData.sqrtPriceX64,
-        poolData.mintDecimalsA,
-        poolData.mintDecimalsB,
-      ).toFixed(2)
+      const response = await axios.get(`https://api.raydium.io/v2/main/pool/${accountInfo.owner.toBase58()}`)
+      const solPrice = response.data.price || "0.00"
 
       // console.log('current price -> ', solPrice)
 

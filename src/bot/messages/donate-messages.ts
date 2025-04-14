@@ -3,9 +3,9 @@ export class DonateMessages {
 
   static donateMessage(userWallet?: string | undefined): string {
     const messageText = `
-⭐ <b>Support the future of Handi Cat</b>
+⭐ <b>Support the future of The Muddies</b>
 
-Every donation helps keep the bot running and contributes to new features 🐱✨
+Every donation helps keep the bot running and contributes to new features 💩✨
 
 No donation is too small, and every bit of support is appreciated!
 
@@ -20,9 +20,9 @@ To donate:
   }
 
   static donationMadeMessage: string = `
-😸 <b>Success!</b> Thank you for your generous donation! 🎉
+💩 <b>Success!</b> Thank you for your generous donation! 🎉
 
-Your support helps keep Handi Cat growing and improving, allowing us to bring you exciting new features and better services.
+Your support helps keep Mud Tracker growing and improving, allowing us to bring you exciting new features and better services.
 
 Every donation makes a difference, and we are incredibly grateful for your contribution. 💖
 
