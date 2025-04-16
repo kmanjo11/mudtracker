@@ -1,86 +1,60 @@
-import { Context, Telegraf } from 'telegraf'
-import { Update, Message } from 'telegraf/typings/core/types/typegram'
-import TelegramBot from 'node-telegram-bot-api'
-import { Command } from '../types'
+import { Context, Telegraf } from 'telegraf';
+import { Update } from 'telegraf/typings/core/types/typegram';
 
-export interface MessageExtra {
-  parse_mode?: 'Markdown' | 'HTML'
-  reply_markup?: any
-}
+export abstract class BaseCommand {
+  constructor(protected bot: Telegraf<Context<Update>>) {}
 
-export abstract class BaseCommand implements Command {
-  abstract readonly name: string
-  abstract readonly description: string
-
-  constructor(protected bot: Telegraf<Context<Update>> | TelegramBot) {}
-
-  protected isTelegraf(bot: Telegraf<Context<Update>> | TelegramBot): bot is Telegraf<Context<Update>> {
-    return 'telegram' in bot
-  }
-
-  protected async editMessage(
-    ctx: Context<Update>,
-    text: string,
-    extra?: MessageExtra
-  ): Promise<void> {
+  protected async editMessage(ctx: Context<Update>, text: string, options?: any): Promise<void> {
     try {
-      const chatId = ctx.chat?.id
-      if (!chatId) return
-
-      if ('callback_query' in ctx.update) {
-        const messageId = ctx.callbackQuery?.message?.message_id
-        if (messageId) {
-          if (this.isTelegraf(this.bot)) {
-            await ctx.editMessageText(text, extra)
-          } else {
-            await this.bot.editMessageText(text, {
-              chat_id: chatId,
-              message_id: messageId,
-              ...extra
-            })
-          }
+      if (ctx.callbackQuery && 'message' in ctx.callbackQuery && ctx.callbackQuery.message) {
+        const message = ctx.callbackQuery.message;
+        if ('chat' in message) {
+          await ctx.telegram.editMessageText(
+            message.chat.id,
+            message.message_id,
+            undefined,
+            text,
+            options
+          );
         }
       } else {
-        if (this.isTelegraf(this.bot)) {
-          await ctx.reply(text, extra)
-        } else {
-          await this.bot.sendMessage(chatId, text, extra)
-        }
+        await ctx.reply(text, options);
       }
     } catch (error) {
-      console.error(`Error in ${this.name}:`, error)
-      await this.handleError(ctx, error)
+      console.error('Error editing message:', error);
+      // Try to send a new message if editing fails
+      try {
+        await ctx.reply(text, options);
+      } catch (replyError) {
+        console.error('Error sending reply after edit failure:', replyError);
+      }
     }
   }
 
   protected async handleError(ctx: Context<Update>, error: any): Promise<void> {
-    const errorMessage = error?.message || 'An error occurred. Please try again.'
+    console.error(`Error in ${this.constructor.name}:`, error);
     
     try {
-      const chatId = ctx.chat?.id
-      if (!chatId) return
-
-      if ('callback_query' in ctx.update) {
-        const queryId = ctx.callbackQuery?.id
-        if (queryId) {
-          if (this.isTelegraf(this.bot)) {
-            await ctx.answerCbQuery(errorMessage.slice(0, 200))
-          } else {
-            await this.bot.answerCallbackQuery(queryId, errorMessage.slice(0, 200))
-          }
-        }
-      }
-
-      if (this.isTelegraf(this.bot)) {
-        await ctx.reply(errorMessage)
+      const errorMessage = '❌ An error occurred. Please try again later.';
+      
+      if (ctx.callbackQuery && 'message' in ctx.callbackQuery && ctx.callbackQuery.message) {
+        await this.editMessage(ctx, errorMessage);
       } else {
-        await this.bot.sendMessage(chatId, errorMessage)
+        await ctx.reply(errorMessage);
       }
     } catch (replyError) {
-      console.error(`Failed to send error message in ${this.name}:`, replyError)
+      console.error('Error sending error message:', replyError);
     }
   }
 
-  abstract execute(ctx: Context<Update>): Promise<void>
-  abstract handleCallback?(ctx: Context<Update>): Promise<void>
+  protected async handleTradeAction(ctx: Context<Update>, action: string, tokenAddress?: string): Promise<void> {
+    // Placeholder for trade actions
+    await this.editMessage(ctx, 
+      `*Trading Action*\n\n` +
+      `Action: ${action}\n` +
+      `Token: ${tokenAddress || 'Unknown'}\n\n` +
+      `This feature is coming soon!`,
+      { parse_mode: 'Markdown' }
+    );
+  }
 }

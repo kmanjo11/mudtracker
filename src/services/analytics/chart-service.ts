@@ -1,4 +1,5 @@
 import { DexTradeService, ChartData as DexChartData, ChartPoint as DexChartPoint } from './dex-trade-service';
+import { ChartRenderer } from '../../utils/chart-renderer';
 
 export interface ChartData {
   labels: string[];
@@ -7,7 +8,11 @@ export interface ChartData {
 }
 
 export class ChartService {
-  constructor(private dexTradeService: DexTradeService) {}
+  private chartRenderer: ChartRenderer;
+
+  constructor(private dexTradeService: DexTradeService) {
+    this.chartRenderer = new ChartRenderer();
+  }
 
   async getTokenChartData(tokenAddress: string, timeframe: string = '1h'): Promise<ChartData> {
     try {
@@ -30,15 +35,35 @@ export class ChartService {
     };
   }
 
-  async generateChartImage(chartData: ChartData): Promise<string> {
-    const latestValue = chartData.values[chartData.values.length - 1];
-    const minValue = Math.min(...chartData.values);
-    const maxValue = Math.max(...chartData.values);
-    
-    return `📊 Chart Summary\n` +
-           `Latest: ${latestValue.toFixed(4)}\n` +
-           `High: ${maxValue.toFixed(4)}\n` +
-           `Low: ${minValue.toFixed(4)}\n` +
-           `Points: ${chartData.values.length}`;
+  async generateChartImage(chartData: ChartData, symbol: string = 'SOL/USDC', timeframe: string = '1h'): Promise<string> {
+    try {
+      // First, generate a text summary
+      const latestValue = chartData.values[chartData.values.length - 1];
+      const minValue = Math.min(...chartData.values);
+      const maxValue = Math.max(...chartData.values);
+      
+      const textSummary = `📊 Chart Summary\n` +
+             `Latest: ${latestValue.toFixed(4)}\n` +
+             `High: ${maxValue.toFixed(4)}\n` +
+             `Low: ${minValue.toFixed(4)}\n` +
+             `Points: ${chartData.values.length}`;
+      
+      // Then, generate an actual chart image
+      if (chartData.values.length > 0) {
+        try {
+          const imagePath = await this.chartRenderer.renderChart(chartData, symbol, timeframe);
+          return imagePath;
+        } catch (error) {
+          console.error('Error generating chart image:', error);
+          // Fallback to text summary if image generation fails
+          return textSummary;
+        }
+      }
+      
+      return textSummary;
+    } catch (error) {
+      console.error('Error in generateChartImage:', error);
+      return 'Error generating chart image';
+    }
   }
 }
