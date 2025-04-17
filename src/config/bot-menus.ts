@@ -18,12 +18,15 @@ export const START_MENU: InlineKeyboardMarkup = {
       { text: '📊 Charts', callback_data: 'charts' },
     ],
     [
-      { text: '⚙️ Settings', callback_data: 'settings' },
+      { text: '🐦 X Feed', callback_data: 'x_feed' },
       { text: '🔎 Help', callback_data: 'help' },
     ],
     [
-      { text: '👑 Upgrade', callback_data: 'upgrade' },
+      { text: '⚙️ Settings', callback_data: 'settings' },
       { text: '❤️ Donate', callback_data: 'donate' },
+    ],
+    [
+      { text: '👑 Upgrade', callback_data: 'upgrade' },
     ],
   ],
 }
@@ -54,6 +57,13 @@ export const TRADE_MENU: InlineKeyboardMarkup = {
     [{ text: '🔄 Spot Trade', callback_data: 'spot_trade' }],
     [{ text: '📈 Leverage Trade', callback_data: 'leverage_trade' }],
     [{ text: '💧 Liquidity Pool', callback_data: 'liquidity_pool' }],
+    [{ text: '🔙 Back', callback_data: 'back_to_main' }]
+  ]
+}
+
+export const X_FEED_MENU: InlineKeyboardMarkup = {
+  inline_keyboard: [
+    [{ text: '🔄 Refresh Feed', callback_data: 'refresh_feed' }],
     [{ text: '🔙 Back', callback_data: 'back_to_main' }]
   ]
 }
