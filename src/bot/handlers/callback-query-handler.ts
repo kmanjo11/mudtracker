@@ -35,6 +35,8 @@ import { TradingService } from '../../services/trading/trading-service'
 import { ChartUICommand } from '../commands/chart-ui-command'
 import { DexTradeService } from '../../services/analytics/dex-trade-service'
 import { ChartService } from '../../services/analytics/chart-service'
+import { XFeedCommand } from '../commands/x-feed-command'
+import { XFeedService } from '../../services/social/x-feed-service'
 
 export class CallbackQueryHandler {
   private addCommand: AddCommand
@@ -47,6 +49,7 @@ export class CallbackQueryHandler {
   private settingsCommand: SettingsCommand
   private groupsCommand: GroupsCommand
   private helpCommand: HelpCommand
+  private xFeedCommand: XFeedCommand
 
   private updateBotStatusHandler: UpdateBotStatusHandler
   private prismaUserRepository: PrismaUserRepository
@@ -75,6 +78,7 @@ export class CallbackQueryHandler {
     this.tradeCommand = new TradeCommand(adaptedBot, new TradingService(RpcConnectionManager.getRandomConnection()))
     const chartService = new ChartService(new DexTradeService());
     this.chartUICommand = new ChartUICommand(adaptedBot, chartService)
+    this.xFeedCommand = new XFeedCommand(adaptedBot, new XFeedService())
 
     // Initialize handlers with adapted bot
     this.prismaUserRepository = new PrismaUserRepository()
@@ -101,6 +105,22 @@ export class CallbackQueryHandler {
           const donationAmount = data.split('_')[1]
           await this.donateHandler.makeDonation(message, Number(donationAmount))
           return
+        }
+
+        // Handle X Feed related callbacks
+        if (data === 'x_feed' || 
+            data === 'refresh_feed' || 
+            data.startsWith('filter_profile:') || 
+            data.startsWith('post_nav:') || 
+            data.startsWith('filter_nav:') || 
+            data === 'add_profile' || 
+            data === 'remove_profile' || 
+            data.startsWith('confirm_remove_profile:') || 
+            data === 'manage_profiles' || 
+            data === 'back_to_feed') {
+          await this.xFeedCommand.handleCallback(ctx);
+          await ctx.answerCbQuery();
+          return;
         }
 
         switch (data) {
